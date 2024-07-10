@@ -65,6 +65,7 @@ def load_automata(filename: str) -> Tuple[List[str], List[str], List[Tuple[str, 
 
     return states, alphabet, delta, initial_state, final_states
 
+
 def process(automaton: Tuple[List[str], List[str], List[Tuple[str, str, str]], str, List[str]], words: List[str]) -> \
         Dict[str, str]:
     """
@@ -105,6 +106,7 @@ def process(automaton: Tuple[List[str], List[str], List[Tuple[str, str, str]], s
 
     return results
 
+
 def handle_closure(state: str, delta: List[Tuple[str, str, str]]) -> Set[str]:
     """
     Retorna o fecho de um estado em um NFA.
@@ -125,37 +127,36 @@ def handle_closure(state: str, delta: List[Tuple[str, str, str]]) -> Set[str]:
 def convert_to_dfa(automaton: Tuple[List[str], List[str], List[Tuple[str, str, str]], str, List[str]]) -> Tuple[
     List[str], List[str], List[Tuple[str, str, str]], str, List[str]]:
     """Converte um NFA num DFA."""
+    states, alphabet, delta, initial_state, final_states = automaton
 
-states, alphabet, delta, initial_state, final_states = automaton
+    new_states = []
+    new_delta = []
+    new_final_states = []
+    new_initial_state = handle_closure(initial_state, delta)
 
-new_states = []
-new_delta = []
-new_final_states = []
-new_initial_state = handle_closure(initial_state, delta)
+    queue = [new_initial_state]
+    visited = []
 
-queue = [new_initial_state]
-visited = []
+    while queue:
+        current_states = queue.pop()
+        visited.append(current_states)
 
-while queue:
-    current_states = queue.pop()
-    visited.append(current_states)
+        for symbol in alphabet:
+            next_states = set()
+            for state in current_states:
+                for (origin, sym, dest) in delta:
+                    if origin == state and sym == symbol:
+                        next_states.update(handle_closure(dest, delta))
+            if next_states:
+                new_delta.append((list(current_states), symbol, frozenset(next_states)))
+                if frozenset(next_states) not in visited:
+                    visited.append(frozenset(next_states))
+                    queue.append(frozenset(next_states))
 
-    for symbol in alphabet:
-        next_states = set()
-        for state in current_states:
-            for (origin, sym, dest) in delta:
-                if origin == state and sym == symbol:
-                    next_states.update(handle_closure(dest, delta))
-        if next_states:
-            new_delta.append((current_states, symbol, frozenset(next_states)))
-            if frozenset(next_states) not in visited:
-                visited.append(frozenset(next_states))
-                queue.append(frozenset(next_states))
+    for state_set in visited:
+        if any(state in final_states for state in state_set):
+            new_final_states.append(list(state_set))
 
-for state_set in visited:
-    if any(state in final_states for state in state_set):
-        new_final_states.append(state_set)
+    new_states = [list(state_set) for state_set in visited]
 
-new_states = [list(state_set) for state_set in visited]
-
-return new_states, alphabet, new_delta, frozenset(new_initial_state), new_final_states
+    return new_states, alphabet, new_delta, frozenset(new_initial_state), new_final_states
