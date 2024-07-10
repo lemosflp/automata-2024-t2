@@ -129,10 +129,52 @@ def convert_to_dfa(automaton: Tuple[List[str], List[str], List[Tuple[str, str, s
     """Converte um NFA num DFA."""
     states, alphabet, delta, initial_state, final_states = automaton
 
+    def handle_closure(state: str, delta: List[Tuple[str, str, str]]) -> Set[str]:
+        """Retorna o fecho de um estado em um NFA."""
+        closure = {state}
+        stack = [state]
+
+        while stack:
+            current = stack.pop()
+            for (origin, sym, dest) in delta:
+                if origin == current and sym == '&' and dest not in closure:
+                    closure.add(dest)
+                    stack.append(dest)
+
+        return closure
+
+    def find_transitions(states: Set[str], symbol: str) -> Set[str]:
+        """Encontra o conjunto de estados alcançáveis a partir de um conjunto de estados e um símbolo."""
+        result = set()
+        for state in states:
+            for (origin, sym, dest) in delta:
+                if origin == state and sym == symbol:
+                    result.add(dest)
+        return result
+
+    def epsilon_closure(states: Set[str]) -> Set[str]:
+        """Retorna o fecho epsilon de um conjunto de estados."""
+        epsilon_closure_set = set(states)
+        stack = list(states)
+
+        while stack:
+            current_state = stack.pop()
+            for (origin, sym, dest) in delta:
+                if origin == current_state and sym == '&':
+                    if dest not in epsilon_closure_set:
+                        epsilon_closure_set.add(dest)
+                        stack.append(dest)
+
+        return epsilon_closure_set
+
+    def state_to_str(state_set: Set[str]) -> str:
+        """Converte um conjunto de estados em uma string ordenada."""
+        return ','.join(sorted(state_set))
+
     new_states = []
     new_delta = []
     new_final_states = []
-    new_initial_state = handle_closure(initial_state, delta)
+    new_initial_state = epsilon_closure({initial_state})
 
     queue = [new_initial_state]
     visited = []
@@ -142,21 +184,17 @@ def convert_to_dfa(automaton: Tuple[List[str], List[str], List[Tuple[str, str, s
         visited.append(current_states)
 
         for symbol in alphabet:
-            next_states = set()
-            for state in current_states:
-                for (origin, sym, dest) in delta:
-                    if origin == state and sym == symbol:
-                        next_states.update(handle_closure(dest, delta))
+            next_states = epsilon_closure(find_transitions(current_states, symbol))
             if next_states:
-                new_delta.append((list(current_states), symbol, frozenset(next_states)))
-                if frozenset(next_states) not in visited:
-                    visited.append(frozenset(next_states))
-                    queue.append(frozenset(next_states))
+                new_delta.append((state_to_str(current_states), symbol, state_to_str(next_states)))
+                if next_states not in visited:
+                    visited.append(next_states)
+                    queue.append(next_states)
 
     for state_set in visited:
         if any(state in final_states for state in state_set):
-            new_final_states.append(list(state_set))
+            new_final_states.append(state_to_str(state_set))
 
-    new_states = [list(state_set) for state_set in visited]
+    new_states = [state_to_str(state_set) for state_set in visited]
 
-    return new_states, alphabet, new_delta, frozenset(new_initial_state), new_final_states
+    return new_states, alphabet, new_delta, state_to_str(new_initial_state), new_final_states
